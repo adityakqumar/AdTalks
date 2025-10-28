@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AdTalks - Chat Room</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --font-family-sans: "Times New Roman", Times, serif;
+        /* Light theme (default) */
+        --primary: #0284C7; /* sky-600 */
+        --primary-strong: #0369A1; /* sky-700 */
+        --accent: #38BDF8; /* sky-400 */
+        --surface: #ffffff;
+        --surface-muted: #f8fafc; /* slate-50 */
+        --message-sent: #eef2ff; /* indigo-50 */
+        --message-received: #ffffff;
+        --text-dark: #0f172a; /* slate-900 */
+        --text-medium: #475569; /* slate-600 */
+        --text-light: #64748b; /* slate-500 */
+        --border-color: #e2e8f0; /* slate-200 */
+        --ocean-500: #0EA5E9; /* sky-500 */
+        --ocean-300: #7DD3FC; /* sky-300 */
+        
+      }
+      
+      html {
+        font-family: var(--font-family-sans);
+      }
+      #chat-page {
+        height: 100%;
+      }
+      .chat-bg-pattern {
+        background: radial-gradient(
+            1200px 600px at 10% 10%,
+            rgba(99, 102, 241, 0.08),
+            transparent
+          ),
+          radial-gradient(
+            1000px 600px at 90% 30%,
+            rgba(34, 211, 238, 0.08),
+            transparent
+          ),
+          linear-gradient(180deg, #f8fafc 0%, #ffffff 60%);
+      }
+      #message-area::-webkit-scrollbar {
+        width: 6px;
+      }
+      #message-area::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      #message-area::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+      }
+      /* This will hide the chat page until the auth check is complete */
+      .manual-hidden {
+        display: none;
+      }
+      /* Elevation */
+      .elevated {
+        box-shadow: 0 10px 30px rgba(2, 6, 23, 0.08);
+      }
+      /* Glassmorphism */
+      .glass {
+        background: rgba(255,255,255,0.55);
+        border: 1px solid rgba(255,255,255,0.35);
+        backdrop-filter: saturate(150%) blur(16px);
+        -webkit-backdrop-filter: saturate(150%) blur(16px);
+      }
+      /* Animated gradient blobs */
+      .blob {
+        position: fixed;
+        width: 520px;
+        height: 520px;
+        filter: blur(60px);
+        opacity: 0.45;
+        z-index: 0;
+        pointer-events: none;
+        will-change: transform;
+        animation: floaty 22s ease-in-out infinite alternate;
+      }
+      .blob--1 { top: -120px; left: -120px; background: radial-gradient(circle at 30% 30%, rgba(79,70,229,0.9), rgba(99,102,241,0.3)); }
+      .blob--2 { bottom: -120px; right: -120px; background: radial-gradient(circle at 70% 70%, rgba(34,211,238,0.9), rgba(14,165,233,0.3)); animation-duration: 26s; }
+      @keyframes floaty { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(30px,-20px,0) scale(1.05); } }
+      /* 3D tilt */
+      .tilt {
+        transform-style: preserve-3d;
+        transition: transform 300ms ease, box-shadow 300ms ease;
+      }
+      .tilt:hover { box-shadow: 0 25px 50px rgba(2,6,23,0.14); }
+      /* Reduced motion accessibility */
+      @media (prefers-reduced-motion: reduce) {
+        .blob { animation: none !important; }
+        .tilt { transition: none !important; }
+      }
+      /* Bubble styles */
+      .bubble-wrap { padding: 1px; border-radius: 14px; background: linear-gradient(135deg, var(--ocean-300), var(--ocean-500)); }
+      .bubble-inner { border-radius: 13px; box-shadow: inset 0 1px 8px rgba(15,23,42,0.08), 0 1px 2px rgba(2,6,23,0.05); }
+    </style>
+  </head>
+  <body
+    class="h-full antialiased transition-colors duration-200"
+    style="
+      color: var(--text-dark);
+      background: linear-gradient(180deg, #e6f6ff 0%, #ffffff 80%);
+      padding-top: 64px;
+    "
+  >
+    <div class="blob blob--1"></div>
+    <div class="blob blob--2"></div>
+    <!-- Glass Navbar -->
+    <nav class="fixed top-0 left-0 right-0 z-20 glass elevated" style="border-bottom: 1px solid var(--border-color);">
+      <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 12c3-2 5-2 8 0s5 2 8 0 5-2 8 0" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 16c3-2 5-2 8 0s5 2 8 0 5-2 8 0" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="text-lg font-bold" style="color: var(--text-dark);">AdTalks</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-sm" style="color: var(--text-medium);">Ocean Edition</div>
+        </div>
+      </div>
+    </nav>
+    <!-- Chat Page -->
+    <div id="chat-page" class="manual-hidden h-full md:grid md:grid-cols-12">
+      <aside
+        class="col-span-3 p-0 border-r bg-white"
+        style="border-color: var(--border-color); color: var(--text-dark)"
+      >
+        <header
+          class="p-4 flex justify-between items-center elevated glass tilt"
+          style="background-color: var(--surface-muted)"
+        >
+          <h2 class="text-lg font-semibold" style="color: var(--text-dark)">
+            Rooms
+          </h2>
+          <button
+            id="logout-btn"
+            class="text-sm font-medium text-red-600 hover:text-red-800"
+          >
+            Logout
+          </button>
+        </header>
+        <div class="p-3 space-y-3">
+          <div class="flex gap-2">
+            <input id="new-room-name" type="text" placeholder="Create room" class="flex-1 bg-white border rounded-full px-3 py-2 text-sm focus:outline-none" style="border-color: var(--border-color);">
+            <button id="create-room-btn" class="px-3 py-2 rounded-full text-white text-sm" style="background-color: var(--primary);">Create</button>
+          </div>
+          <div>
+            <p class="text-xs mb-2" style="color: var(--text-medium)">Available Rooms</p>
+            <ul id="room-list" class="space-y-1"></ul>
+          </div>
+          <div class="pt-2 border-t" style="border-color: var(--border-color)">
+            <p class="text-xs mb-2" style="color: var(--text-medium)">Active Users</p>
+            <ul
+              id="user-list"
+              class="divide-y"
+              style="border-color: var(--border-color)"
+            ></ul>
+          </div>
+        </div>
+      </aside>
+
+      <main class="col-span-9 flex flex-col chat-bg-pattern">
+        <header
+          class="p-3 flex items-center justify-between border-b z-10 elevated glass tilt"
+          style="
+            background-color: var(--surface-muted);
+            border-color: var(--border-color);
+          "
+        >
+          <h1 class="text-lg font-semibold" style="color: var(--text-dark)">
+            AdTalks Public Room
+          </h1>
+          <p
+            id="connected-user"
+            class="text-sm"
+            style="color: var(--text-medium)"
+          ></p>
+        </header>
+
+        <div
+          id="message-area"
+          class="flex-1 p-4 md:p-6 space-y-2 overflow-y-auto"
+        ></div>
+
+        <footer
+          class="p-2 border-t flex items-center elevated glass tilt"
+          style="
+            background-color: var(--surface-muted);
+            border-color: var(--border-color);
+          "
+        >
+          <form id="message-form" class="flex items-center space-x-3 w-full">
+            <input
+              type="text"
+              id="message"
+              placeholder="Type a message..."
+              autocomplete="off"
+              class="flex-1 bg-white border rounded-full p-3 focus:outline-none focus:ring-2"
+              style="
+                border-color: var(--border-color);
+                box-shadow: 0 2px 8px rgba(2, 6, 23, 0.04);
+              "
+            />
+            <button
+              type="submit"
+              class="w-12 h-12 flex items-center justify-center rounded-full text-white transition duration-200"
+              style="
+                background-color: var(--primary);
+                box-shadow: 0 6px 18px rgba(2, 132, 199, 0.35);
+              "
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </form>
+        </footer>
+      </main>
+    </div>
+
+    <script>
+      "use strict";
+      // Chat elements
+      const chatPage = document.querySelector("#chat-page"); // Get chat page
+      const logoutBtn = document.querySelector("#logout-btn");
+      const messageForm = document.querySelector("#message-form");
+      const messageInput = document.querySelector("#message");
+      const messageArea = document.querySelector("#message-area");
+      const userListElement = document.querySelector("#user-list");
+      const connectedUserElement = document.querySelector("#connected-user");
+
+      // State
+      let stompClient = null;
+      let currentUser = null;
+      let activeUsers = new Set();
+      const colors = [
+        "#4F46E5",
+        "#22D3EE",
+        "#06B6D4",
+        "#0EA5E9",
+        "#6366F1",
+        "#14B8A6",
+        "#F59E0B",
+        "#EF4444",
+        "#10B981",
+        "#84CC16",
+        "#8B5CF6",
+      ];
+
+      // --- Page Initialization ---
+
+      // Check if user is logged in
+      (async function checkAuth() {
+        try {
+          // FIX: Use absolute URL
+          const response = await fetch(`${window.location.origin}/api/auth/me`);
+          if (!response.ok) {
+            // Not authenticated, redirect to login
+            // FIX: Use absolute URL
+            navigate(`${window.location.origin}/index.html`);
+            return;
+          }
+          const user = await response.json();
+          currentUser = user.username;
+
+          // Show the chat page now that we are authenticated
+          chatPage.classList.remove("manual-hidden");
+          chatPage.classList.add("grid"); // Add grid to display it
+
+          // If authenticated, connect to chat
+          connectToChat();
+        } catch (error) {
+          console.error("Auth check failed", error);
+          // FIX: Use absolute URL
+          window.location.href = `${window.location.origin}/index.html`;
+        }
+      })();
+
+      async function handleLogout() {
+        if (stompClient && stompClient.connected) {
+          // Manually send a LEAVE message so everyone sees you left
+          const chatMessage = { sender: currentUser, type: "LEAVE" };
+          stompClient.send(
+            "/app/chat.addUser",
+            {},
+            JSON.stringify(chatMessage)
+          ); // Re-using addUser for leave logic
+
+          stompClient.disconnect(() => {
+            console.log("Disconnected from WebSocket.");
+            // Perform the HTTP logout after disconnecting
+            performHttpLogout();
+          });
+        } else {
+          // If WebSocket is not connected, just perform HTTP logout
+          await performHttpLogout();
+        }
+      }
+
+      async function performHttpLogout() {
+        try {
+          // FIX: Use absolute URL
+          await fetch(`${window.location.origin}/api/auth/logout`, {
+            method: "POST",
+          });
+        } catch (error) {
+          console.error("Error during HTTP logout:", error);
+        } finally {
+          currentUser = null;
+          // Redirect to login page
+          // FIX: Use absolute URL
+          navigate(`${window.location.origin}/index.html?logout=true`);
+        }
+      }
+
+      // --- Chat Logic ---
+
+      function connectToChat() {
+        if (!currentUser) return; // Don't connect if user isn't set
+
+        connectedUserElement.textContent = `Logged in as: ${currentUser}`;
+        // Use absolute path for SockJS
+        const socket = new SockJS(`${window.location.origin}/ws`);
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, onConnected, onError);
+      }
+
+      async function onConnected() {
+        // Fetch chat history first
+        try {
+          // FIX: Use absolute URL
+          const response = await fetch(
+            `${window.location.origin}/api/messages`
+          );
+          if (response.ok) {
+            const messages = await response.json();
+            messages.forEach(displayChatMessage); // Display history
+            messageArea.scrollTop = messageArea.scrollHeight; // Scroll to bottom
+          }
+        } catch (error) {
+          console.error("Could not fetch chat history", error);
+        }
+
+        // Then subscribe to real-time updates for current room
+        subscribeToRoom(currentRoom);
+
+        // Send the JOIN message for current room
+        stompClient.send(
+          "/app/chat.addUser",
+          {},
+          JSON.stringify({ sender: currentUser, type: "JOIN", room: currentRoom })
+        );
+      }
+
+      function onError(error) {
+        console.error("Connection error:", error);
+        // Use a simple message box
+        const errorBox = document.createElement("div");
+        errorBox.textContent =
+          "Could not connect to chat. Please try logging in again.";
+        errorBox.style.cssText =
+          "position:fixed;top:10px;left:50%;transform:translateX(-50%);background:red;color:white;padding:10px;border-radius:5px;z-index:1000;";
+        document.body.appendChild(errorBox);
+        setTimeout(() => {
+          // FIX: Use absolute URL
+          navigate(`${window.location.origin}/index.html`);
+        }, 3000);
+      }
+
+      function sendMessage(event) {
+        event.preventDefault();
+        const messageContent = messageInput.value.trim();
+        if (messageContent && stompClient) {
+          const chatMessage = {
+            sender: currentUser,
+            content: messageInput.value,
+            type: "CHAT",
+            room: currentRoom,
+          };
+          stompClient.send(
+            "/app/chat.sendMessage",
+            {},
+            JSON.stringify(chatMessage)
+          );
+          messageInput.value = "";
+        }
+      }
+
+      function formatTimestamp(timestamp) {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      function displayEventMessage(message) {
+        const eventContainer = document.createElement("div");
+        eventContainer.classList.add("flex", "flex-col", "items-center", "w-full", "my-2");
+        
+        // Message content
+        const textElement = document.createElement("span");
+        textElement.classList.add(
+          "text-xs",
+          "px-3",
+          "py-1.5",
+          "rounded-full",
+          "shadow-md",
+          "mb-1"
+        );
+        textElement.textContent = message.content || message.sender + (message.type === 'JOIN' ? ' joined' : ' left');
+        textElement.style.backgroundColor = "var(--surface-muted)";
+        textElement.style.color = "var(--text-medium)";
+        
+        // Timestamp
+        const timestampEl = document.createElement("div");
+        timestampEl.classList.add("text-xs", "opacity-60");
+        timestampEl.style.color = "var(--text-medium)";
+        timestampEl.textContent = formatTimestamp(message.timestamp);
+        
+        eventContainer.appendChild(textElement);
+        eventContainer.appendChild(timestampEl);
+        messageArea.appendChild(eventContainer);
+      }
+
+      function onMessageReceived(payload) {
+        try {
+          const message = JSON.parse(payload.body);
+          
+          // Add timestamp if not present
+          message.timestamp = message.timestamp || new Date().toISOString();
+          
+          if (message.type === "JOIN") {
+            // The content of a JOIN/LEAVE message is a JSON string of the user list
+            try {
+              const users = JSON.parse(message.content);
+              activeUsers = new Set(users);
+              if (message.sender !== currentUser) {
+                displayEventMessage({
+                  ...message,
+                  content: `${message.sender} joined`
+                });
+              }
+            } catch (e) {
+              console.error("Error parsing user list:", e);
+            }
+          } else if (message.type === "LEAVE") {
+            try {
+              const users = JSON.parse(message.content);
+              activeUsers = new Set(users);
+              if (message.sender !== currentUser) {
+                displayEventMessage({
+                  ...message,
+                  content: `${message.sender} left`
+                });
+              }
+            } catch (e) {
+              console.error("Error parsing user list:", e);
+            }
+          } else {
+            displayChatMessage(message);
+          }
+          
+          updateUsersList();
+          
+          // Auto-scroll logic
+          const shouldScroll = messageArea.scrollTop + messageArea.clientHeight + 200 > messageArea.scrollHeight;
+          if (shouldScroll || message.sender === currentUser) {
+            messageArea.scrollTop = messageArea.scrollHeight;
+          }
+          
+        } catch (e) {
+          console.error("Error processing message:", e);
+          // If we can't parse the message, try to display it as a chat message
+          try {
+            const message = JSON.parse(payload.body);
+            if (message && message.type === "CHAT") {
+              displayChatMessage(message);
+            }
+          } catch (parseError) {
+            console.error("Could not parse message:", payload.body);
+          }
+        }
+      }
+
+      function displayChatMessage(message) {
+        const isDark = document.documentElement.classList.contains('dark');
+        const textColor = isDark ? 'var(--dark-text)' : 'var(--text-dark)';
+        const timestampColor = isDark ? 'var(--dark-text-light)' : 'var(--text-medium)';
+        
+        // Don't display JOIN/LEAVE messages here
+        if (message.type === "JOIN" || message.type === "LEAVE") {
+          return;
+        }
+
+        const messageContainer = document.createElement("div");
+        messageContainer.classList.add(
+          "flex",
+          "w-full",
+          "items-start",
+          "fade-in",
+          "mb-2"
+        );
+
+        const isOwnMessage = message.sender === currentUser;
+        messageContainer.classList.add(
+          isOwnMessage ? "justify-end" : "justify-start"
+        );
+
+        // Main message wrapper
+        const messageWrapper = document.createElement("div");
+        messageWrapper.classList.add("flex", "flex-col", isOwnMessage ? "items-end" : "items-start");
+
+        // Gradient border wrapper
+        const wrap = document.createElement('div');
+        wrap.classList.add('bubble-wrap');
+        
+        // Inner bubble
+        const bubble = document.createElement("div");
+        bubble.classList.add("bubble-inner", "max-w-xs", "md:max-w-md", "p-2.5");
+        bubble.style.color = textColor;
+
+        // Timestamp element
+        const timestampEl = document.createElement("div");
+        timestampEl.classList.add("text-xs", "opacity-60", "mt-1");
+        timestampEl.style.color = timestampColor;
+        timestampEl.textContent = formatTimestamp(message.timestamp);
+
+        if (isOwnMessage) {
+          bubble.classList.add("rounded-bl-none");
+          bubble.style.backgroundColor = isDark ? "var(--dark-message-sent)" : "var(--message-sent)";
+          bubble.style.color = isDark ? "white" : "var(--text-dark)";
+          
+          const messageText = document.createElement("p");
+          messageText.classList.add("text-sm", "break-words");
+          messageText.textContent = message.content;
+          messageText.style.color = "var(--text-dark)";
+          
+          bubble.appendChild(messageText);
+          
+          // Add timestamp after the message for own messages
+          messageWrapper.appendChild(wrap);
+          messageWrapper.appendChild(timestampEl);
+        } else {
+          bubble.classList.add("bg-white", "rounded-bl-none");
+          
+          const senderName = document.createElement("p");
+          senderName.classList.add("text-sm", "font-bold", "mb-1");
+          senderName.textContent = message.sender;
+          senderName.style.color = getAvatarColor(message.sender);
+
+          const messageText = document.createElement("p");
+          messageText.classList.add("text-sm", "break-words");
+          messageText.textContent = message.content;
+          messageText.style.color = "var(--text-dark)";
+
+          bubble.appendChild(senderName);
+          bubble.appendChild(messageText);
+          
+          // Add timestamp after the message for received messages
+          messageWrapper.appendChild(wrap);
+          messageWrapper.appendChild(timestampEl);
+        }
+        
+        wrap.appendChild(bubble);
+        messageContainer.appendChild(messageWrapper);
+        messageArea.appendChild(messageContainer);
+      }
+
+      function updateUsersList() {
+        userListElement.innerHTML = "";
+        // Filter out the current user from the list
+        const otherUsers = Array.from(activeUsers).filter(user => user !== currentUser).sort();
+        
+        if (otherUsers.length === 0) {
+          const noUsersElement = document.createElement("li");
+          noUsersElement.innerHTML = `
+            <div class="p-3 text-center">
+              <span class="text-sm" style="color: var(--text-medium);">No active users</span>
+            </div>`;
+          userListElement.appendChild(noUsersElement);
+          return;
+        }
+        
+        otherUsers.forEach((user) => {
+          const avatarColor = getAvatarColor(user);
+          const userElement = document.createElement("li");
+          userElement.innerHTML = `
+            <div class="flex items-center p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-lg mr-3" style="background-color: ${avatarColor};">
+                ${user[0].toUpperCase()}
+              </div>
+              <span class="font-medium" style="color: var(--text-dark);">${user}</span>
+            </div>`;
+          userListElement.appendChild(userElement);
+        });
+      }
+
+      function getAvatarColor(messageSender) {
+        if (!messageSender) return colors[0]; // Fallback
+        let hash = 0;
+        for (let i = 0; i < messageSender.length; i++) {
+          hash = 31 * hash + messageSender.charCodeAt(i);
+        }
+        return colors[Math.abs(hash % colors.length)];
+      }
+
+      // Event Listeners
+      messageForm.addEventListener("submit", sendMessage);
+      logoutBtn.addEventListener("click", handleLogout);
+      document.getElementById('create-room-btn').addEventListener('click', async () => {
+        const input = document.getElementById('new-room-name');
+        const name = (input.value || '').trim();
+        if (!name) return;
+        try {
+          const res = await fetch(`${window.location.origin}/api/rooms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+          if (res.ok) {
+            input.value = '';
+            await loadRooms();
+            switchRoom(name);
+          }
+        } catch (e) { console.error('Create room failed', e); }
+      });
+      // 3D tilt interaction
+      (function initTilt() {
+        const tiltEls = document.querySelectorAll('.tilt');
+        let maxTilt = 4; // weaker tilt
+        const perspective = 900;
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          maxTilt = 0;
+        }
+        tiltEls.forEach(el => {
+          el.style.transform = `perspective(${perspective}px)`;
+          el.addEventListener('mousemove', (e) => {
+            const rect = el.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const rotateY = ((x - centerX) / centerX) * maxTilt;
+            const rotateX = -((y - centerY) / centerY) * maxTilt;
+            el.style.transform = `perspective(${perspective}px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateZ(0)`;
+          });
+          el.addEventListener('mouseleave', () => {
+            el.style.transform = `perspective(${perspective}px) rotateX(0deg) rotateY(0deg)`;
+          });
+        });
+      })();
+
+      // View transitions navigation helper
+      function navigate(url) {
+        if (document.startViewTransition) {
+          document.startViewTransition(() => {
+            window.location.href = url;
+          });
+        } else {
+          window.location.href = url;
+        }
+      }
+
+      // --- Multi-room logic ---
+      let currentRoom = new URLSearchParams(window.location.search).get('room') || 'public';
+      let roomSubscription = null;
+
+      async function loadRooms() {
+        try {
+          const res = await fetch(`${window.location.origin}/api/rooms`);
+          if (!res.ok) return;
+          const rooms = await res.json();
+          // Pass the full room objects with their creation dates
+          renderRoomList(rooms);
+        } catch(e) { console.error('Load rooms failed', e); }
+      }
+
+      function formatDate(timestamp) {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        return date.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+
+      function renderRoomList(rooms) {
+        const ul = document.getElementById('room-list');
+        ul.innerHTML = '';
+        
+        // Add public room first
+        const publicRoom = { name: 'public', createdAt: new Date().toISOString() };
+        const allRooms = [publicRoom, ...rooms];
+        
+        allRooms.sort((a, b) => a.name.localeCompare(b.name)).forEach(room => {
+          const li = document.createElement('li');
+          const isActive = room.name === currentRoom;
+          const roomDate = room.createdAt ? formatDate(room.createdAt) : '';
+          
+          li.innerHTML = `
+            <button data-room="${room.name}" 
+              class="w-full text-left px-3 py-2 rounded-md text-sm group ${isActive ? 'font-bold' : ''}" 
+              style="color: var(--text-dark); background:${isActive ? 'rgba(2,132,199,0.08)' : 'transparent'};">
+              <div class="flex justify-between items-center">
+                <span># ${room.name}</span>
+                <span class="text-xs opacity-60 group-hover:opacity-100 transition-opacity" style="color: var(--text-medium);">
+                  ${roomDate}
+                </span>
+              </div>
+            </button>`;
+          ul.appendChild(li);
+        });
+        
+        ul.querySelectorAll('button[data-room]').forEach(btn => {
+          btn.addEventListener('click', () => switchRoom(btn.getAttribute('data-room')));
+        });
+      }
+
+      function subscribeToRoom(room) {
+        if (!stompClient) return;
+        if (roomSubscription) {
+          try { roomSubscription.unsubscribe(); } catch(_) {}
+          roomSubscription = null;
+        }
+        roomSubscription = stompClient.subscribe(`/topic/rooms/${room}`, onMessageReceived);
+      }
+
+      async function switchRoom(nextRoom) {
+        if (nextRoom === currentRoom) return;
+        // send LEAVE for old room
+        if (stompClient && stompClient.connected) {
+          stompClient.send('/app/chat.addUser', {}, JSON.stringify({ sender: currentUser, type: 'LEAVE', room: currentRoom }));
+        }
+        currentRoom = nextRoom;
+        // update URL param (no reload)
+        const url = new URL(window.location.href);
+        url.searchParams.set('room', currentRoom);
+        window.history.replaceState({}, '', url);
+        // clear messages and users
+        messageArea.innerHTML = '';
+        activeUsers = new Set();
+        updateUsersList();
+        // fetch history for new room
+        try {
+          const response = await fetch(`${window.location.origin}/api/rooms/${currentRoom}/messages`);
+          if (response.ok) {
+            const messages = await response.json();
+            messages.forEach(displayChatMessage);
+            messageArea.scrollTop = messageArea.scrollHeight;
+          }
+        } catch(e) { console.error('Load room history failed', e); }
+        // subscribe and send JOIN
+        subscribeToRoom(currentRoom);
+        if (stompClient && stompClient.connected) {
+          stompClient.send('/app/chat.addUser', {}, JSON.stringify({ sender: currentUser, type: 'JOIN', room: currentRoom }));
+        }
+        // refresh room list highlighting
+        await loadRooms();
+      }
+
+      // Load rooms early
+      loadRooms();
+    </script>
+  </body>
+</html>

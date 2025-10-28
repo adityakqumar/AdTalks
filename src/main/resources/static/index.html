@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AdTalks - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --font-family-sans: 'Times New Roman', Times, serif;
+            /* Light theme (default) */
+            --primary: #0284C7; /* sky-600 */
+            --primary-strong: #0369A1; /* sky-700 */
+            --accent: #38BDF8; /* sky-400 */
+            --surface: #ffffff;
+            --surface-muted: #f8fafc; /* slate-50 */
+            --text-dark: #0f172a; /* slate-900 */
+            --text-medium: #475569; /* slate-600 */
+            --border-color: #e2e8f0; /* slate-200 */
+            
+        }
+        
+        html { font-family: var(--font-family-sans); }
+        .chat-bg-pattern {
+            background: radial-gradient(1200px 600px at 10% 10%, rgba(2,132,199,0.10), transparent),
+                        radial-gradient(1000px 600px at 90% 30%, rgba(56,189,248,0.10), transparent),
+                        linear-gradient(180deg, #e6f6ff 0%, #ffffff 70%);
+        }
+        .elevated { box-shadow: 0 20px 40px rgba(2,6,23,0.08); }
+        /* Glassmorphism */
+        .glass {
+            background: rgba(255,255,255,0.55);
+            border: 1px solid rgba(255,255,255,0.35);
+            backdrop-filter: saturate(150%) blur(16px);
+            -webkit-backdrop-filter: saturate(150%) blur(16px);
+        }
+        /* Animated gradient blobs */
+        .blob {
+            position: fixed;
+            width: 520px;
+            height: 520px;
+            filter: blur(60px);
+            opacity: 0.45;
+            z-index: 0;
+            pointer-events: none;
+            will-change: transform;
+            animation: floaty 22s ease-in-out infinite alternate;
+        }
+        .blob--1 { top: -120px; left: -120px; background: radial-gradient(circle at 30% 30%, rgba(79,70,229,0.9), rgba(99,102,241,0.3)); }
+        .blob--2 { bottom: -120px; right: -120px; background: radial-gradient(circle at 70% 70%, rgba(34,211,238,0.9), rgba(14,165,233,0.3)); animation-duration: 26s; }
+        @keyframes floaty { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(30px,-20px,0) scale(1.05); } }
+        /* 3D tilt */
+        .tilt {
+            transform-style: preserve-3d;
+            transition: transform 300ms ease, box-shadow 300ms ease;
+        }
+        .tilt:hover { box-shadow: 0 25px 50px rgba(2,6,23,0.14); }
+        /* Reduced motion accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            .blob { animation: none !important; }
+            .tilt { transition: none !important; }
+        }
+    </style>
+</head>
+<body class="h-full antialiased transition-colors duration-200" style="color: var(--text-dark); background: linear-gradient(180deg, #e6f6ff 0%, #ffffff 80%); padding-top: 64px;">
+
+<!-- Authentication Page -->
+<nav class="fixed top-0 left-0 right-0 z-20 glass elevated" style="border-bottom: 1px solid var(--border-color);">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 12c3-2 5-2 8 0s5 2 8 0 5-2 8 0" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M2 16c3-2 5-2 8 0s5 2 8 0 5-2 8 0" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="text-lg font-bold" style="color: var(--text-dark);">AdTalks</span>
+        </div>
+        <div class="flex items-center gap-4">
+<div class="text-sm" style="color: var(--text-medium);">Ocean Edition</div>
+        </div>
+    </div>
+</nav>
+<div id="auth-page" class="h-full flex items-center justify-center p-4 chat-bg-pattern" style="position: relative; z-index: 1;">
+    <div class="blob blob--1"></div>
+    <div class="blob blob--2"></div>
+    <div class="w-full max-w-sm bg-white rounded-2xl elevated glass tilt p-8 border" style="border-color: var(--border-color);">
+        <h1 class="text-2xl font-bold text-center mb-2" style="color: var(--text-dark);">Welcome to AdTalks</h1>
+        <p class="text-center mb-6" style="color: var(--text-medium);" id="auth-subtitle">Login or Register to continue</p>
+
+        <div class="mb-4 border-b border-gray-200">
+            <nav class="flex -mb-px">
+                <button id="login-tab" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-[var(--primary)] text-[var(--primary-strong)]">Login</button>
+                <button id="register-tab" class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-[var(--text-dark)] hover:border-[var(--border-color)]">Register</button>
+            </nav>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="space-y-4">
+            <input id="login-username" type="text" placeholder="Username" required class="w-full bg-white border rounded-lg p-3 transition focus:outline-none focus:ring-2 text-gray-900 placeholder-gray-500" style="border-color: var(--border-color); box-shadow: 0 2px 8px rgba(2,6,23,0.04);">
+            <input id="login-password" type="password" placeholder="Password" required class="w-full bg-white border rounded-lg p-3 transition focus:outline-none focus:ring-2 text-gray-900 placeholder-gray-500" style="border-color: var(--border-color); box-shadow: 0 2px 8px rgba(2,6,23,0.04);">
+            <button type="submit" class="w-full flex justify-center py-3 px-4 rounded-lg font-medium text-white transition" style="background-color: var(--primary); box-shadow: 0 10px 25px rgba(2,132,199,0.35);">Login</button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="hidden space-y-4">
+            <input id="register-username" type="text" placeholder="Choose a username" required class="w-full bg-white border rounded-lg p-3 transition focus:outline-none focus:ring-2 text-gray-900 placeholder-gray-500" style="border-color: var(--border-color); box-shadow: 0 2px 8px rgba(2,6,23,0.04);">
+            <input id="register-password" type="password" placeholder="Choose a password" required class="w-full bg-white border rounded-lg p-3 transition focus:outline-none focus:ring-2 text-gray-900 placeholder-gray-500" style="border-color: var(--border-color); box-shadow: 0 2px 8px rgba(2,6,23,0.04);">
+            <button type="submit" class="w-full flex justify-center py-3 px-4 rounded-lg font-medium text-white transition" style="background-color: var(--primary-strong); box-shadow: 0 10px 25px rgba(2,132,199,0.35);">Register</button>
+        </form>
+        <p id="auth-error" class="text-center text-red-500 mt-4 text-sm"></p>
+    </div>
+</div>
+
+<script>
+    'use strict';
+    
+// Page elements
+    const loginForm = document.querySelector('#login-form');
+    const registerForm = document.querySelector('#register-form');
+    const loginTab = document.querySelector('#login-tab');
+    const registerTab = document.querySelector('#register-tab');
+    const authErrorElement = document.querySelector('#auth-error');
+
+    // --- Authentication Logic ---
+
+    function switchTab(isLogin) {
+        if (isLogin) {
+            loginTab.classList.add('border-teal-500', 'text-teal-600');
+            loginTab.classList.remove('border-transparent', 'text-gray-500');
+            registerTab.classList.add('border-transparent', 'text-gray-500');
+            registerTab.classList.remove('border-teal-500', 'text-teal-600');
+            loginForm.classList.remove('hidden');
+            registerForm.classList.add('hidden');
+        } else {
+            registerTab.classList.add('border-teal-500', 'text-teal-600');
+            registerTab.classList.remove('border-transparent', 'text-gray-500');
+            loginTab.classList.add('border-transparent', 'text-gray-500');
+            loginTab.classList.remove('border-teal-500', 'text-teal-600');
+            registerForm.classList.remove('hidden');
+            loginForm.classList.add('hidden');
+        }
+        authErrorElement.textContent = '';
+    }
+
+    async function handleRegister(event) {
+        event.preventDefault();
+        const username = document.querySelector('#register-username').value.trim();
+        const password = document.querySelector('#register-password').value.trim();
+        authErrorElement.textContent = '';
+
+        if (!username || !password) {
+            authErrorElement.textContent = 'Username and password are required.';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${window.location.origin}/api/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const responseData = await response.json();
+            if (response.ok) {
+                alert('Registration successful! Please log in.');
+                switchTab(true);
+                document.querySelector('#login-username').value = username;
+                document.querySelector('#login-password').focus();
+            } else {
+                authErrorElement.textContent = `Registration failed: ${responseData.error || 'Unknown error'}`;
+            }
+        } catch (error) {
+            authErrorElement.textContent = 'An error occurred during registration.';
+            console.error(error);
+        }
+    }
+
+    async function handleLogin(event) {
+        event.preventDefault();
+        const username = document.querySelector('#login-username').value.trim();
+        const password = document.querySelector('#login-password').value.trim();
+        authErrorElement.textContent = '';
+
+        if (!username || !password) {
+            authErrorElement.textContent = 'Username and password are required.';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${window.location.origin}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            // --- THIS IS THE FIX ---
+            // We check 'response.ok' (status 200-299) AND 'response.redirected' (is false).
+            // A failed login will redirect, so response.redirected will be true.
+            if (response.ok && !response.redirected) {
+                // On successful login, redirect to the chat page
+                window.location.href = `${window.location.origin}/chat.html`;
+            } else {
+                // This will now correctly catch 401 errors OR redirects
+                authErrorElement.textContent = 'Invalid username or password.';
+            }
+        } catch (error) {
+            authErrorElement.textContent = 'An error occurred during login.';
+            console.error(error);
+        }
+    }
+
+    // Event Listeners
+    loginTab.addEventListener('click', () => switchTab(true));
+    registerTab.addEventListener('click', () => switchTab(false));
+    loginForm.addEventListener('submit', handleLogin);
+    registerForm.addEventListener('submit', handleRegister);
+
+    // Check for logout query param
+    window.addEventListener('load', () => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('logout')) {
+            const authSubtitle = document.querySelector('#auth-subtitle');
+            if (authSubtitle) {
+                authSubtitle.textContent = 'You have been logged out.';
+            }
+        }
+    });
+
+</script>
+</body>
+</html>
+
